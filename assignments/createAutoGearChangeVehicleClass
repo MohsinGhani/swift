@@ -1,0 +1,55 @@
+import UIKit
+
+
+class Vehicle{
+    private var _gear:Int;
+    private var _speed: Int = 0;
+    
+    init(gear:Int){
+        self._gear = gear;
+    }
+    
+    func start() {
+        if self._gear != 0{
+            print("Car is Moving in \(self._gear) gear")
+            self.changeGear()
+        }
+        else{
+            print("Car is Start but not Moving")
+            self.changeGear()
+        }
+    }
+    
+    func stop() {
+        self._gear = 0;
+        print("Car is Stop")
+    }
+    
+    private func changeGear(){
+        self._speed = self._speed + 1;
+        
+        if((self._speed % 10000) == 0){
+            self._gear = self._gear + 1;
+            print("change gear \(self._gear-1) to \(self._gear)")
+            print("Car is Moving in gear \(self._gear) \n")
+            if(self._gear < 5){
+                self.changeGear()
+            }
+            else{
+                print("Car is Moving in full speed!")
+            }
+        }
+        else{
+            if(self._speed <= 50000){
+                self.changeGear()
+            }
+        }
+    }
+    
+    
+    
+}
+
+var car = Vehicle(gear:0)
+car.start()
+
