@@ -1,0 +1,548 @@
+import * as functions from 'firebase-functions';
+import db from './../../db/index';
+import { Request, Response } from "express";
+import * as _cors from 'cors';
+
+var cors = _cors({ origin: true });
+
+
+export const QuizResult = functions.https.onRequest(async (req: Request, res: Response) => {
+
+
+    //https://ilikekillnerds.com/2017/05/enabling-cors-middleware-firebase-cloud-functions/
+    cors(req, res, () => {
+        db.init();
+        var obj = { userId: req.body.userId, groupId: req.body.groupId, subgroupId: req.body.subgroupId, quizId: req.body.quizId };
+        var userAnswers:any, userQuiz:any;
+        var booleanArray: any[];
+        getUserQuizAnswers(function () {
+            getQuizes(function () {
+                logic(function (multipath:any, returnObject:any) {
+                    console.log('21:multipath',multipath)
+                    db.getRefUserQuizAnswer().child(obj.userId).child(obj.groupId).child(obj.subgroupId).child(obj.quizId).update(multipath, (err:any) => {
+                        if (err)  {
+                            res.send({ sccuess: false, error: 'quiz-users-answers: ' + err });
+                        } else {
+                            // saving result in quiz-result node in firebase
+                            db.getrefQuizResult().child(obj.groupId).child(obj.subgroupId).child(obj.userId).child(obj.quizId).push(returnObject, (err:any) => {
+                                if (err) {
+                                    res.send({ sccuess: false, error: 'quiz-resut: ' + err });
+                                } else {
+                                    res.send({ sccuess: true, data: returnObject, error: null });
+                                }
+                            });
+                        }
+                    }); // firebase.getRefUserQuizAnswer()
+                }); // logic
+            });
+        });
+
+        function getUserQuizAnswers(cb: Function) {
+            db.getRefUserQuizAnswer().child(obj.userId).child(obj.groupId).child(obj.subgroupId).child(obj.quizId).once('value', (quizAnsSanpshot:any) => {
+                userAnswers = quizAnsSanpshot.val();
+                console.log('42:getUserQuizAnswers->quizAnsSanpshot.val()',quizAnsSanpshot.val())
+                cb();
+            });
+        } // getUserQuizAnswers
+
+        function getQuizes(cb: Function) {
+            db.getRefQuiz().child(obj.quizId).once('value', (quizSnapshot:any) => {
+                console.log('50:getQuizes->quizAnsSanpshot.val()',quizSnapshot.val())
+                userQuiz = quizSnapshot.val();
+                cb();
+            });
+        } // getQuizes
+
+        function logic(cb: Function) {
+            let multipath:any = {}, questionbanks;
+            let correctAnswerCount = 0;
+            let questionsCount = 0;
+                       
+            questionbanks = userAnswers['questionbanks'];
+            console.log('62:logic->questionbanks',JSON.stringify(questionbanks))
+            for (let bookName in questionbanks) {    // geting bookName from question bank            
+                let chapters = userAnswers['questionbanks'][bookName]['chapters'];
+                for (let chapterId in chapters) { // getting chapterId from chapters
+                    let topics = userAnswers['questionbanks'][bookName]['chapters'][chapterId]['topics'];
+                    for (let topicId in topics) { // getting topicId from topics
+                        let questions = userAnswers['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions']; // getting questions from topic
+                        if (questions instanceof Array) {
+                            console.log('70:if->questions instanceof Array->questions->',JSON.stringify(questions))
+                            questions.forEach((singleQuestion, indx) => {   //getting singleQuestion from questions
+                                console.log('72:singleQuestion,index',singleQuestion, indx);
+                                for (let questionId in singleQuestion) { //getting questionId from question Object and then get question /***
+                                    console.log('74:->for->questionId',questionId)
+                                    if (singleQuestion[questionId].hasOwnProperty('questions')) {
+                                        let multiQuestion = singleQuestion[questionId]['questions'];
+                                        console.log('77:->if(singleQuestion[questionId].hasOwnProperty(questions))->multiQuestion',multiQuestion)
+                                        multiQuestion.forEach((randomQuestions:any, randomQuestionIndex:any) => {   // geting randam multiple question
+                                            let orgKey;
+                                            let key:any; 
+                                            for (let orgKey in randomQuestions) {
+                                                key = orgKey.charAt(orgKey.length - 1);
+                                                // randomQuestions.forEach((quesiton, index) => {   // geting question from multiple question
+                                                questionsCount++;
+                                                let count: number = 0;
+                                                let result: number = 0;
+                                                booleanArray = [];  // boolean array for saving result
+                                                let options = randomQuestions[orgKey]['options'];
+                                                count = count + 1;    // add count after each loop for saving boolean result
+                                                if (options.length) {
+                                                    // if Options has Array
+                                                    var optionArr:any = []; // get correct option from user given quiz quesiton
+                                                    options.filter(function (optionValue:any, index:any) { // filter array to remove undefined item
+                                                        if (optionValue) {
+                                                            optionArr.push(index) // 
+                                                        }
+                                                    }) // array end
+                                                    // get correct option form quiz
+                                                    var quizCorrectAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['questions'][key]['options'];
+                                                    var correctArray:any = []; // get correct option from quiz option
+                                                    quizCorrectAnswer.forEach((option:any, indexOp:any) => {
+                                                        if (option["correct"]) {
+                                                            correctArray.push(indexOp);
+                                                        }
+                                                    }) //quizCorrectAnswer forEach end
+                                                    if (correctArray.length !== optionArr.length) { //correctArray.length  and optionArr.length is not equal then save answer wrong
+                                                        console.log('107:multipath',multipath)
+                                                        multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + indx + '/' + questionId + '/questions/' + randomQuestionIndex + '/' + orgKey + '/correct'] = false;
+                                                        console.log('109:multipath',multipath)
+                                                    } else {
+                                                        options.forEach((option:any, optionIndex:any) => {
+                                                            let correctAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['questions'][key]['options'][optionIndex];
+                                                            //checking from correct answer from quiz at index
+                                                            booleanArray[count] = correctAnswer['correct'];
+                                                            // after checking all options we are checking result (save by true/false) (creating multipath for save at last)
+                                                            if (options.length - 1 === optionIndex) {
+                                                                result = calculateBooleanArray(booleanArray);
+                                                                if (result) {
+                                                                    correctAnswerCount++;
+                                                                    console.log('120:multipath',multipath)
+                                                                    multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + indx + '/' + questionId + '/questions/' + randomQuestionIndex + '/' + orgKey + '/correct'] = true;
+                                                                    console.log('122:multipath',multipath)
+                                                                } else {
+                                                                    console.log('124:multipath',multipath)
+                                                                    multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + indx + '/' + questionId + '/questions/' + randomQuestionIndex + '/' + orgKey + '/correct'] = false;
+                                                                    console.log('126:multipath',multipath)
+                                                                }
+                                                            }
+                                                        }); // options Array
+                                                    } // else end
+                                                } else {
+                                                    // if Options has Object
+                                                    let objIndex: number = 0;
+                                                    for (let obj in options) {
+                                                        objIndex++;
+                                                        let correctAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['questions'][key]['options'][obj];
+                                                        //checking from correct answer from quiz at index
+                                                        booleanArray[count] = correctAnswer['correct'];
+                                                        // after checking all options we are checking result (save by true/false) (creating multipath for save at last)
+                                                        if (Object.keys(options).length === objIndex) {
+                                                            result = calculateBooleanArray(booleanArray);
+                                                            if (result) {
+                                                                correctAnswerCount++;
+                                                                multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + indx + '/' + questionId + '/questions/' + randomQuestionIndex + '/' + orgKey + '/correct'] = true;
+
+                                                            } else {
+                                                                multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + indx + '/' + questionId + '/questions/' + randomQuestionIndex + '/' + orgKey + '/correct'] = false;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                // }); // randomQuestion Array
+                                            }
+                                            // // save result true/false in 'correct' property of questionSet (when randomQuestion array has completed)
+                                            // if (mul 
+                                        }); // multiQuestion Array
+                                    } else if (singleQuestion[questionId].hasOwnProperty('options')) {
+                                        questionsCount++;
+                                        let options = singleQuestion[questionId]['options'];
+                                        let count: number = 0;
+                                        let result: number = 0;
+                                        let booleanArray:any = [];
+                                        console.log('164:->else if(singleQuestion[questionId].hasOwnProperty(options),options',options)
+                                        if (options.length) {
+                                            //if options has array
+                                            var optionArr:any = []; // get correct option from user given quiz quesiton
+                                            options.filter(function (optionValue:any, index:any) { // filter array to remove undefined item
+                                                if (optionValue) {
+                                                    optionArr.push(index) // 
+                                                }
+                                            }) // array end
+                                            // get correct option form quiz
+                                            var quizCorrectAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['options'];
+                                            console.log('175:quizCorrectAnswer->',quizCorrectAnswer);
+                                            var correctArray:any = []; // get correct option from quiz option
+                                            quizCorrectAnswer.forEach((option:any, indexOp:any) => {
+                                                if (option["correct"]) {
+                                                    correctArray.push(indexOp);
+                                                }
+                                            }) //quizCorrectAnswer forEach end
+                                            console.log('182:correctArray and optionArr',correctArray,optionArr)
+                                            if (correctArray.length !== optionArr.length) { //correctArray.length  and optionArr.length is not equal then save answer wrong
+                                                console.log('184:if->correctArray.length !== optionArr.length->multipath',multipath)
+                                                console.log('285->multipath',multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + indx + '/' + questionId + '/correct'])
+                                                multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + indx + '/' + questionId + '/correct'] = false;
+                                                console.log('287:if->correctArray.length !== optionArr.length->multipath',multipath)
+                                            } else {
+                                                console.log('189:else of->correctArray.length !== optionArr.length->options',options)
+                                                options.forEach((option:any, optionIndex:any) => {
+                                                    console.log('191:forEach->option',option)
+                                                    let correctAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['options'][optionIndex];
+                                                    count++;    // add count after each loop for saving boolean result
+                                                    console.log('194:forEach->correctAnswer',correctAnswer)
+                                                    //checking from correct answer from quiz at index
+                                                    booleanArray[count] = correctAnswer['correct'];
+                                                    console.log('197:forEach->booleanArray,booleanArray[count]',booleanArray,booleanArray[count])
+                                                    // after checking all options we are checking result (save by true/false) (creating multipath for save at last)
+                                                    if (options.length - 1 === optionIndex) {
+                                                        console.log('200:if->options.length - 1 === optionIndex',options.length - 1 === optionIndex)
+                                                        result = calculateBooleanArray(booleanArray);
+                                                        console.log('202:if->result',result)
+                                                        if (result) {
+                                                            correctAnswerCount++;
+                                                            console.log('203:if->result->correctAnswerCount',correctAnswerCount)
+                                                            console.log("204:maltipath",multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + questionId + '/options/' + indx  + '/correct'])
+                                                            console.log('205:if->result->multipath',multipath)
+                                                            multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + indx + '/' + questionId + '/correct'] = false;
+                                                            // multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + questionId + '/options/' + indx  + '/correct'] = true;
+                                                            console.log('207:if->result->multipath',multipath)
+                                                        } else {// if result
+                                                            console.log('204:else of->result->multipath',multipath)
+                                                            multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + indx + '/' + questionId + '/correct'] = false;
+                                                            // multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + questionId + '/options/' + indx  + '/correct'] = false;
+                                                        }
+                                                    }
+                                                }); // options Array
+                                                console.log('212:else of->correctArray.length !== optionArr.length->multipath,options',multipath,options)
+                                            } // else end
+
+                                        } else {    // else if object
+                                            // if options has object
+                                            let quizCorrectAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['options']; // get quesion correct Answer
+                                            let correctArray:any = []; // get correct option from quiz option
+                                            quizCorrectAnswer.forEach((option:any, indexOp:any) => {
+                                                if (option["correct"]) {
+                                                    correctArray.push(indexOp);
+                                                }
+                                            }) //quizCorrectAnswer forEach end
+                                            console.log('224:else of->options.length->quizCorrectAnswer,correctArray',quizCorrectAnswer,correctArray);
+                                            if (Object.keys(options).length != correctArray.length) { // correct Answer Count is to equal to user selected count
+                                                console.log('226:Object.keys(options).length != correctArray.length',Object.keys(options).length != correctArray.length)
+                                                multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + indx + '/' + questionId + '/correct'] = false;
+                                                console.log('228:multipath',multipath)
+                                            } else {
+                                                let ObjectIndex: number = 0;
+                                                for (var opt in options) {
+                                                    let correctAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['options'][opt];
+                                                    console.log('233:else->correctAnswer',correctAnswer)
+                                                    count++;    // add count after each loop for saving boolean result
+                                                    ObjectIndex++;
+                                                    //checking from correct answer from quiz at index
+                                                    booleanArray[count] = correctAnswer['correct'];
+                                                    // after checking all options we are checking result (save by true/false) (creating multipath for save at last)
+                                                    if (Object.keys(options).length === ObjectIndex) {
+                                                        console.log('240:if->Object.keys(options).length === ObjectIndex',Object.keys(options).length === ObjectIndex)
+                                                        result = calculateBooleanArray(booleanArray);
+                                                        console.log('242:result',result)
+                                                        if (result) {
+                                                            correctAnswerCount++;
+                                                            console.log('245:if->result->correctAnswerCount',correctAnswerCount)
+                                                            console.log('246:if->result->multipath',multipath)
+                                                            // multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + questionId + '/options/' + indx  + '/correct'] = true
+                                                            multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + indx + '/' + questionId + '/correct'] = true;
+                                                            console.log('249:if->result->multipath',multipath)
+                                                        } else {// if result
+                                                            console.log('251:if->result->multipath',multipath)
+                                                            // multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + questionId + '/options/' + indx  + '/correct'] = false
+                                                            multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + indx + '/' + questionId + '/correct'] = false;
+                                                            console.log('254:else of->result->multipath,correctAnswerCount',multipath,correctAnswerCount)
+                                                        }
+                                                    }
+                                                }
+                                            } // options Object
+                                        } // else Object
+                                    } // else if
+                                } // for (let questionId in singleQuestion) **/
+                            }); // questions Array
+                        } else {
+                            console.log('241:else part->questions instanceof Array->questions->',questions)
+                            // let indx: number = 0;
+                            let singleQuestion: any;
+
+                            for (singleQuestion in questions) {
+                                questionsCount++;
+                                for (let questionId in questions[singleQuestion]) { //getting questionId from question Object and then get question
+                                    if (questions[singleQuestion][questionId].hasOwnProperty('questions')) {
+                                        let count: number = 0;
+                                        let result: number = 0;
+                                        let booleanArray:any = [];  // boolean array for saving result
+                                        let multiQuestion = questions[singleQuestion][questionId]['questions']
+                                        multiQuestion.forEach((randomQuestions:any, randomQuestionIndex:any) => {   // geting randam multiple question
+                                            if (randomQuestions.length) {
+                                                randomQuestions.forEach((quesiton:any, index:any) => {   // geting question from multiple question
+                                                    let options = quesiton['options'];
+                                                    count = count + 1;    // add count after each loop for saving boolean result
+
+                                                    if (options.length) {
+                                                        var optionArr:any[]; // get correct option from user given quiz quesiton
+                                                        optionArr = [];
+                                                        options.filter(function (optionValue:any, index:any) { // filter array to remove undefined item
+                                                            if (optionValue) {
+                                                                optionArr.push(index) // 
+                                                            }
+                                                        }) // array end
+                                                        // get correct option form quiz
+                                                        var quizCorrectAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['questions'][index]['options'];
+                                                        var correctArray:any[]; // get correct option from quiz option
+                                                        correctArray = [];
+                                                        quizCorrectAnswer.forEach((option:any, indexOp:any) => {
+                                                            if (option["correct"]) {
+                                                                correctArray.push(indexOp);
+                                                            }
+                                                        }) //quizCorrectAnswer forEach end
+                                                        if (correctArray.length !== optionArr.length) { //correctArray.length  and optionArr.length is not equal then save answer wrong
+                                                            multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/correct'] = false;
+                                                        } else {
+                                                            // if Options has Array
+                                                            options.forEach((option:any, optionIndex:any) => {
+                                                                let correctAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['questions'][index]['options'][optionIndex];
+                                                                //checking from correct answer from quiz at index
+                                                                booleanArray[count] = correctAnswer['correct'];
+                                                                // after checking all options we are checking result (save by true/false) (creating multipath for save at last)
+                                                                if (options.length - 1 === optionIndex) {
+                                                                    result = calculateBooleanArray(booleanArray);
+                                                                }
+                                                            }); // options Array
+                                                        }
+
+                                                    } else {
+                                                        let quizCorrectAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['questions'][index]['options'] // get quesion correct Answer
+                                                        let correctArray:any[]; // get correct option from quiz option
+                                                        correctArray = [];
+                                                        quizCorrectAnswer.forEach((option:any, indexOp:any) => {
+                                                            if (option["correct"]) {
+                                                                correctArray.push(indexOp);
+                                                            }
+                                                        }) //quizCorrectAnswer forEach end
+                                                        if (Object.keys(options).length != correctArray.length) { // correct Answer Count is to equal to user selected count
+                                                            multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/correct'] = false;
+                                                        }
+                                                        else { // if Options has Object
+                                                            let objIndex: number = 0;
+                                                            for (let obj in options) {
+                                                                objIndex++;
+                                                                let correctAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['questions'][index]['options'][obj];
+                                                                //checking from correct answer from quiz at index
+                                                                booleanArray[count] = correctAnswer['correct'];
+                                                                // after checking all options we are checking result (save by true/false) (creating multipath for save at last)
+                                                                if (Object.keys(options).length === objIndex) {
+                                                                    result = calculateBooleanArray(booleanArray);
+                                                                }
+                                                            }
+
+                                                        }
+                                                    }
+                                                }); // randomQuestion Array
+                                                // save result true/false in 'correct' property of questionSet (when randomQuestion array has completed)
+                                                if (multiQuestion.length - 1 === randomQuestionIndex) {
+                                                    if (result) {
+                                                        correctAnswerCount++;
+                                                        multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/correct'] = true;
+                                                    } else {// if result
+                                                        multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/correct'] = false;
+                                                    }
+                                                }
+                                            }
+                                            else {
+                                                let randomIndex = 0;
+                                                for (var abc in randomQuestions) {
+                                                    randomIndex++;
+                                                    let options = randomQuestions[abc]['options'];
+                                                    let orgRandomQKey = abc.charAt(abc.length - 1);
+                                                    count = count + 1;    // add count after each loop for saving boolean result
+                                                    if (options && options.length) {
+                                                        // if Options has Array
+                                                        var optionArr:any = []; // get correct option from user given quiz quesiton
+                                                        options.filter(function (optionValue:any, index:any) { // filter array to remove undefined item
+                                                            if (optionValue) {
+                                                                optionArr.push(index) // 
+                                                            }
+                                                        }) // array end
+                                                        // get correct option form quiz
+                                                        var quizCorrectAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['questions'][orgRandomQKey]['options'];
+                                                        var correctArray:any = []; // get correct option from quiz option
+                                                        quizCorrectAnswer.forEach((option:any, indexOp:any) => {
+                                                            if (option["correct"]) {
+                                                                correctArray.push(indexOp);
+                                                            }
+                                                        }) //quizCorrectAnswer forEach end
+                                                        if (correctArray.length !== optionArr.length) { //correctArray.length  and optionArr.length is not equal then save answer wrong
+                                                            multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/correct'] = false;
+                                                        } else {
+                                                            options.forEach((option:any, optionIndex:any) => {
+                                                                let correctAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['questions'][orgRandomQKey]['options'][optionIndex];
+                                                                //checking from correct answer from quiz at index
+                                                                booleanArray[count] = correctAnswer['correct'];
+                                                                // after checking all options we are checking result (save by true/false) (creating multipath for save at last)
+                                                                if (options.length - 1 === optionIndex) {
+                                                                    result = calculateBooleanArray(booleanArray);
+                                                                    if (result) {
+                                                                        multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/questions/' + randomQuestionIndex + '/' + abc + '/correct'] = true;
+                                                                    } else {
+                                                                        multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/questions/' + randomQuestionIndex + '/' + abc + '/correct'] = false;
+                                                                    }
+                                                                }
+                                                            }); // options Array
+                                                        }
+                                                    } else {
+                                                        if (options) {
+                                                            // if Options has Object
+                                                            let quizCorrectAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['questions'][orgRandomQKey]['options']; // get quesion correct Answer
+                                                            let correctArray:any = []; // get correct option from quiz option
+                                                            quizCorrectAnswer.forEach((option:any, indexOp:any) => {
+                                                                if (option["correct"]) {
+                                                                    correctArray.push(indexOp);
+                                                                }
+                                                            }) //quizCorrectAnswer forEach end
+                                                            if (Object.keys(options).length != correctArray.length) { // correct Answer Count is to equal to user selected count
+                                                                multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/questions/' + randomQuestionIndex + '/' + abc + '/correct'] = false;
+                                                            } else {
+                                                                //if options length is equal to correctArray.length
+                                                                let objIndex: number = 0;
+                                                                for (let obj in options) {
+                                                                    objIndex++;
+                                                                    let correctAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['questions'][orgRandomQKey]['options'][obj];
+                                                                    //checking from correct answer from quiz at index
+                                                                    booleanArray[count] = correctAnswer['correct'];
+                                                                    // after checking all options we are checking result (save by true/false) (creating multipath for save at last)
+                                                                    if (Object.keys(options).length === objIndex) {
+                                                                        result = calculateBooleanArray(booleanArray);
+                                                                        if (result) {
+                                                                            // correctAnswerCount++;
+                                                                            multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/questions/' + randomQuestionIndex + '/' + abc + '/correct'] = true;
+                                                                        } else {
+                                                                            multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/questions/' + randomQuestionIndex + '/' + abc + '/correct'] = false;
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                if (Object.keys(randomQuestions).length === randomIndex) {
+                                                    if (result) {
+                                                        correctAnswerCount++;
+                                                        multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/correct'] = true;
+                                                    } else {// if result
+                                                        multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/correct'] = false;
+                                                    }
+                                                }
+                                            }
+
+                                        }); // multiQuestion Array
+                                    } else if (questions[singleQuestion][questionId].hasOwnProperty('options')) {
+
+                                        let options = questions[singleQuestion][questionId]['options'];
+                                        let count: number = 0;
+                                        let result: number = 0;
+                                        let booleanArray:any = [];
+                                        if (options.length) {
+                                            var optionArr:any = []; // get correct option from user given quiz quesiton
+                                            options.filter(function (optionValue:any, index:any) { // filter array to remove undefined item
+                                                if (optionValue) {
+                                                    optionArr.push(index) // 
+                                                }
+                                            }) // array end
+                                            // get correct option form quiz
+                                            var quizCorrectAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['options'];
+                                            var correctArray:any = []; // get correct option from quiz option
+                                            quizCorrectAnswer.forEach((option:any, indexOp:any) => {
+                                                if (option["correct"]) {
+                                                    correctArray.push(indexOp);
+                                                }
+                                            }) //quizCorrectAnswer forEach end
+                                            if (correctArray.length !== optionArr.length) { //correctArray.length  and optionArr.length is not equal then save answer wrong
+                                                multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/correct'] = false;
+                                            } else {
+                                                //if options has array
+                                                options.forEach((option:any, optionIndex:any) => {
+                                                    let correctAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['options'][optionIndex];
+                                                    count++;    // add count after each loop for saving boolean result
+                                                    //checking from correct answer from quiz at index
+                                                    booleanArray[count] = correctAnswer['correct'];
+                                                    // after checking all options we are checking result (save by true/false) (creating multipath for save at last)
+                                                    if (options.length - 1 === optionIndex) {
+                                                        result = calculateBooleanArray(booleanArray);
+                                                        if (result) {
+                                                            correctAnswerCount++;
+                                                            multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/correct'] = true;
+                                                        } else {// if result
+                                                            multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/correct'] = false;
+                                                        }
+                                                    }
+                                                }); // options Array 
+                                            }
+
+                                        } else {    // else if object
+                                            // if options has object
+                                            let quizCorrectAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['options']; // get quesion correct Answer
+                                            let correctArray:any = []; // get correct option from quiz option
+                                            quizCorrectAnswer.forEach((option:any, indexOp:any) => {
+                                                if (option["correct"]) {
+                                                    correctArray.push(indexOp);
+                                                }
+                                            }) //quizCorrectAnswer forEach end
+                                            if (Object.keys(options).length != correctArray.length) { // correct Answer Count is to equal to user selected count
+                                                multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/correct'] = false;
+                                            } else {
+                                                let ObjectIndex: number = 0;
+                                                for (var opt in options) {
+                                                    let correctAnswer = userQuiz['questionbanks'][bookName]['chapters'][chapterId]['topics'][topicId]['questions'][questionId]['options'][opt];
+                                                    count++;    // add count after each loop for saving boolean result
+                                                    ObjectIndex++;
+                                                    //checking from correct answer from quiz at index
+                                                    booleanArray[count] = correctAnswer['correct'];
+                                                    // after checking all options we are checking result (save by true/false) (creating multipath for save at last)
+                                                    if (Object.keys(options).length === ObjectIndex) {
+                                                        result = calculateBooleanArray(booleanArray);
+                                                        if (result) {
+                                                            correctAnswerCount++;
+                                                            multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/correct'] = true;
+                                                        } else {// if result
+                                                            multipath['questionbanks/' + bookName + '/chapters/' + chapterId + '/topics/' + topicId + '/questions/' + singleQuestion + '/' + questionId + '/correct'] = false;
+                                                        }
+                                                    }
+                                                } // options Object
+
+                                            }
+                                        } // else Object
+                                    } // else if
+                                } // for (let questionId in singleQuestion)
+                            }
+                        }
+                    } // for topicId 
+                } // for chapterId
+            } // for bookname
+            // percentage
+            let percentage = correctAnswerCount / userAnswers["total-questions"] * 100;
+            multipath['total-score'] = percentage;
+            let returnObject = { "percentage": percentage.toFixed(2), "start-time": userAnswers['start-time'], "totalQuestions": userAnswers["total-questions"], "correctAnswers": correctAnswerCount };
+            cb(multipath, returnObject);
+        } // logic
+
+        function calculateBooleanArray(booleanArray:any) {
+            var result: number = 1;
+            booleanArray.forEach((bool:any) => {
+                result = result * bool;
+            });
+            return result;
+        }
+
+    }); // cors end
+
+})
+
+
+
+
