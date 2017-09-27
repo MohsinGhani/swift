@@ -1,0 +1,60 @@
+//: Playground - noun: a place where people can play
+
+import UIKit
+
+class Machine{
+    open var _brand: String;
+    open var _status: Bool = false;
+    open var _color: String;
+    open var _weight: String;
+    open var _warranty: String;
+    open var _price : Int;
+    
+    init(brand:String, color: String, weight: String, warranty: String, price: Int) {
+        self._brand = brand;
+        self._color = color;
+        self._weight = weight;
+        self._warranty = warranty;
+        self._price = price;
+    }
+    
+    public func pushSwitch(){
+        if(self._status){
+            print("Machine is Off now")
+            self._status = false;
+        }
+        else{
+            print("Machine is On now")
+            self._status = true;
+        }
+    }
+    
+    public func showDetail(){
+        print("Brand = \(self._brand)\nColor = \(self._color)\nWeight = \(self._weight)\nWarranty = \(self._warranty)\nPrice = \(self._price)")
+    }
+}
+
+class Television:Machine{
+    var _inch:String
+    var _HdGraphics:Bool
+    
+    init(brand:String, color:String, weight:String, warranty:String, price:Int, inch:String, hd:Bool){
+        self._inch = inch
+        self._HdGraphics = hd
+        super.init(brand:brand, color:color , weight:weight , warranty:warranty , price:price )
+    }
+    
+    override func showDetail(){
+        print("\nBrand = \(self._brand)\nColor = \(self._color)\nWeight = \(self._weight)\nWarranty = \(self._warranty)\nPrice = \(self._price)\nInches = \(self._inch)\nHD Graphic = \(self._HdGraphics)")
+    }
+    
+}
+
+
+
+var machine = Machine(brand:"General", color: "Black", weight: "50", warranty: "Two Years", price: 90000)
+machine.showDetail()
+
+var tv = Television(brand:"Sony", color: "White", weight: "30", warranty: "one Years", price: 27000,inch:"29 inch",hd:true)
+tv.showDetail()
+
