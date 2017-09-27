@@ -1,0 +1,96 @@
+import UIKit
+
+/*
+ Object oriented programmin (OOP)
+ Pillars of OOP
+ 1.Encapsulation
+ 2.Abstraction
+ 3.Inheritance
+ 4.Polymorhphism
+ */
+
+class BankAccount{
+    var title:String
+    var balance:Double
+    var _tax:Double
+    
+    init(t:String,b:Double,tax:Double) {
+        self.title = t
+        self.balance = b
+        self._tax = tax
+    }
+    
+    func displayBalance(){
+        print("BanckAccount \(self.title) balance  = \(self.balance)")
+    }
+    
+    var getTaxReturn:Double{
+        get{
+            return self.balance - self._tax
+        }
+    }
+}
+
+class SavingAccount:BankAccount{
+    var interestRate:Double
+    
+    init(rate:Double,tChild:String,bChild:Double,tax:Double) {
+        self.interestRate = rate
+        super.init(t: tChild, b: bChild, tax: tax)
+    }
+    
+    override func displayBalance() {
+//        super.displayBalance()
+        print("Saving Account \(self.title) balance  = \(self.balance * self.interestRate * 0.4)")
+    }
+    
+    override var getTaxReturn: Double{
+        get{
+            return (self.balance-self._tax) * self.interestRate/100
+        }
+    }
+}
+
+
+//Static binding
+var bAcc = BankAccount(t: "Noman", b: 20000 ,tax:500)
+bAcc.balance
+bAcc.title
+//bAcc.displayBalance()
+//bAcc.getTaxReturn
+
+//
+//
+//
+var sAcc = SavingAccount(rate: 4, tChild: "Waqar", bChild: 30000,tax:500)
+sAcc.interestRate
+sAcc.balance
+sAcc.title
+//sAcc.displayBalance()
+//sAcc.getTaxReturn
+
+
+/*
+ *Polymorphism
+ *Runtime/Dynamic binding
+ 
+ */
+var arr:[BankAccount] = [bAcc,sAcc]
+
+for item in arr{
+    if let savingAcc = item as? SavingAccount{
+        print(savingAcc.interestRate)
+    }else{
+        item.displayBalance()
+    }
+}
+
+/*
+1.Make a class of Machine
+2.Implement some propeties and methods to achieve (Abstraction and Encapsulation)
+3.Make multiple child class inherit from Machine Class
+ For example (Generator,vehicle.....)
+ 
+4.Achieve the polymorphism
+ 
+*/
