@@ -58,3 +58,33 @@ for item in arr {
         dog.eat()
     }
 }
+
+Task#2
+protocol Attendance{
+    func checkIn(id:String) -> Bool
+    func checkOut(id:String) -> Bool
+}
+
+class Student: Attendance{
+    var _name: String;
+    var _id: String;
+    
+    init(name:String, id:String){
+        self._name = name;
+        self._id = id
+    }
+    
+    func checkIn(id:String) -> Bool {
+        print("\(self._name) is check in")
+        return true
+    }
+    
+    func checkOut(id:String) -> Bool {
+        print("\(self._name) is check out")
+        return true
+    }
+}
+
+var mohsin = Student(name:"Mohsin Ghani", id:"0065")
+mohsin.checkIn(id: "0065")
+mohsin.checkOut(id: "0065")
