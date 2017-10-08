@@ -59,7 +59,7 @@ for item in arr {
     }
 }
 
-Task#2
+//Task#2
 protocol Attendance{
     func checkIn(id:String) -> Bool
     func checkOut(id:String) -> Bool
@@ -90,8 +90,7 @@ mohsin.checkIn(id: "0065")
 mohsin.checkOut(id: "0065")
 
 
-Task#3
-
+//Task#3
 class Point: Equatable{
     var _x,_y:Int
     
