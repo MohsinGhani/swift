@@ -1,0 +1,60 @@
+//: Task 1
+
+import UIKit
+
+class Animal{
+    var color: String
+    
+    init(c:String){
+        self.color = c;
+    }
+    
+    func sound(){
+        print("blablablabla")
+    }
+}
+
+class Cat: Animal{
+    var name: String
+    init(n:String,c:String){
+        self.name = n;
+        super.init(c: c)
+    }
+    
+    override func sound(){
+        print("meowwwwww")
+    }
+}
+
+class Dog: Animal{
+    var name: String
+    init(n:String,c:String){
+        self.name = n;
+        super.init(c: c)
+    }
+    
+    override func sound() {
+        print("bhaowwww bhaowwww")
+    }
+    
+    func eat(){
+        print("dog eating food")
+    }
+}
+
+var cat = Cat(n:"mio",c:"white")
+var dog = Dog(n:"john",c:"Black")
+var arr = [Animal]()
+
+arr.append(cat)
+arr.append(dog)
+
+for item in arr {
+    if let cat = item as? Cat{
+        cat.sound()
+    }
+    if let dog = item as? Dog{
+        dog.sound()
+        dog.eat()
+    }
+}
