@@ -1,0 +1,38 @@
+//
+//  ViewController.swift
+//  listViewApp
+//
+//  Created by Mohsin on 29/10/2017.
+//  Copyright © 2017 Mohsin. All rights reserved.
+//
+
+import UIKit
+
+class ViewController: UIViewController,UITableViewDataSource {
+
+    @IBOutlet weak var list: UITableView!
+    let students = ["Mohsin Ghani","Arbaz Ali","Farrukh Arif","Shahzaib Khan","Shehbaz Ali","Syed Basit", "Muhammad Amir","Bilal Afzal","Shehriyar Ahmed"];
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        self.list.dataSource = self;
+        // Do any additional setup after loading the view, typically from a nib.
+    }
+
+    override func didReceiveMemoryWarning() {
+        super.didReceiveMemoryWarning();
+        // Dispose of any resources that can be recreated.
+    }
+    
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        return self.students.count;
+    }
+    
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let row = UITableViewCell();
+        row.textLabel?.text = students[indexPath.row]
+        return row; 
+    }
+
+
+}
+
