@@ -1,0 +1,32 @@
+protocol Messaging{
+    func sendMsg(msg:String)
+}
+
+class Sender{
+    var sMsg: String = "";
+    var delegate: Messaging?
+    init(sm:String) {
+        self.sMsg = sm;
+    }
+    
+    func send(){
+        self.delegate?.sendMsg(msg: "Its Done")
+    }
+}
+
+class Receiver:Messaging{
+    var rMsg: String = "";
+    var delegate: Messaging?
+    init(rm:String) {
+        self.rMsg = rm;
+    }
+    func sendMsg(msg: String) {
+        print("msg = \(msg)")
+    }
+}
+
+let s = Sender(sm:"Hello");
+let r = Receiver(rm:"Hi");
+
+s.delegate = r;
+s.send();
