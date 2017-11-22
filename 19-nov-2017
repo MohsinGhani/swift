@@ -1,3 +1,58 @@
+//Delegation Example#1
+
+protocol personProtocol{
+    func receivedMsgPrint(message:String);
+}
+
+class PersonOne: personProtocol{
+    var _name: String;
+    var _msg: String?;
+    var delegate: personProtocol?
+    
+    init(name:String){
+        self._name = name;
+    }
+    
+    func sendMessage(msg:String){
+        self.delegate?.receivedMsgPrint(message: msg)
+    }
+    
+    func receivedMsgPrint(message:String){
+        print("\(self._name) has new Message = \(message)");
+    }
+}
+
+class PersonTwo: personProtocol{
+    var _name: String;
+    var _msg: String?;
+    var delegate: personProtocol?
+    init(name:String){
+        self._name = name;
+    }
+    
+    func sendMessage(msg:String){
+        self.delegate?.receivedMsgPrint(message: msg)
+    }
+    
+    func receivedMsgPrint(message:String){
+        print("\(self._name) has new Message = \(message)");
+    }
+}
+
+let one = PersonOne(name:"Arhsad");
+let two = PersonTwo(name:"Ali");
+one.delegate = two;
+two.delegate = one;
+
+one.sendMessage(msg: "Hello Arshad");
+two.sendMessage(msg: "Hi Ali")
+print();
+one.sendMessage(msg: "How are you");
+two.sendMessage(msg: "I am fine and you?")
+
+//////////////////////////////////////////////////////////////
+
+//Delegation Example#2
 protocol Messaging{
     func sendMsg(msg:String)
 }
