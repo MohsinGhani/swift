@@ -1,0 +1,38 @@
+//: Playground - noun: a place where people can play
+
+import UIKit
+
+let input : String = " "
+let string = Array(input.characters)
+
+var i = 0;
+var currentState = 0;
+var finalState = 2
+while i < string.count {
+    if(string[i] == "0" || string[i] == "1"){
+        if(currentState == 0){
+            currentState = 1
+        }
+        else if(currentState == 1){
+            currentState = 2
+        }
+        else if(currentState == 2){
+            currentState = 1
+        }
+    }
+    else{
+        currentState = 0;
+        break;
+    }
+    i = i + 1
+}
+
+if(currentState == finalState){
+    print("\(input) input is Accepted");
+}
+else if(currentState == 1){
+    print("\(input) input is Rejected");
+}
+else if(currentState == 0){
+    print("Stop Working");
+}
